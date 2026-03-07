@@ -144,7 +144,6 @@
       letter-spacing: 1px;
     }
 
-    /* Full screen frame that appears after navigation */
     #sj-frame {
       position: fixed;
       inset: 0;
@@ -155,7 +154,6 @@
       display: none;
     }
 
-    /* Back button shown when frame is active */
     #backBtn {
       position: fixed;
       top: 15px;
@@ -280,7 +278,7 @@
   const drops = Array(Math.floor(cols)).fill(0);
   setInterval(() => {
     ctx.fillStyle = 'rgba(0,0,0,0.05)';
-    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = '#00ff00';
     ctx.font = '14px monospace';
     drops.forEach((y, i) => {
@@ -301,13 +299,10 @@
   });
   scramjet.init("/scram/scramjet.sw.js");
 
-  // Init BareMux transport
   const connection = new BareMux.BareMuxConnection("/baremux/worker.js");
-  const wispUrl = (location.protocol === "https:" ? "wss" : "ws") + "://" + location.host + "/wisp/";
-  connection.setTransport("/libcurl/index.mjs", [{ websocket: wispUrl }]);
-
   let frameController = null;
 
+  // Enter key support
   document.getElementById('urlInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') navigate();
   });
@@ -318,7 +313,6 @@
   }
 
   function goBack() {
-    // Hide frame, show main UI
     document.getElementById('sj-frame').style.display = 'none';
     document.getElementById('backBtn').style.display = 'none';
     document.getElementById('mainUI').style.display = 'flex';
@@ -341,18 +335,17 @@
     document.getElementById('loadingOverlay').classList.add('active');
 
     try {
-      // Make sure transport is set
+      const wispUrl = (location.protocol === "https:" ? "wss" : "ws") + "://" + location.host + "/wisp/";
+
       if ((await connection.getTransport()) !== "/libcurl/index.mjs") {
         await connection.setTransport("/libcurl/index.mjs", [{ websocket: wispUrl }]);
       }
 
-      // Show the frame
       const frame = document.getElementById('sj-frame');
       frame.style.display = 'block';
       document.getElementById('mainUI').style.display = 'none';
       document.getElementById('backBtn').style.display = 'block';
 
-      // Use Scramjet to load the URL in the iframe
       frameController = scramjet.createFrame(frame);
       frameController.go(raw);
 
