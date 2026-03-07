@@ -98,9 +98,7 @@
       caret-color: var(--accent);
     }
 
-    #urlInput::placeholder {
-      color: rgba(0,255,0,0.3);
-    }
+    #urlInput::placeholder { color: rgba(0,255,0,0.3); }
 
     #goBtn {
       background: var(--accent);
@@ -114,7 +112,6 @@
       letter-spacing: 2px;
       transition: opacity 0.2s;
     }
-
     #goBtn:hover { opacity: 0.8; }
 
     .quick-links {
@@ -135,7 +132,6 @@
       transition: all 0.2s;
       font-family: 'Consolas', monospace;
     }
-
     .quick-link:hover {
       background: var(--accent);
       color: #000;
@@ -146,6 +142,39 @@
       color: rgba(0,255,0,0.35);
       font-size: 11px;
       letter-spacing: 1px;
+    }
+
+    /* Full screen frame that appears after navigation */
+    #sj-frame {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      border: none;
+      z-index: 50;
+      display: none;
+    }
+
+    /* Back button shown when frame is active */
+    #backBtn {
+      position: fixed;
+      top: 15px;
+      left: 15px;
+      z-index: 200;
+      background: rgba(0,0,0,0.9);
+      color: var(--accent);
+      border: 2px solid var(--accent);
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-family: 'Consolas', monospace;
+      font-size: 14px;
+      cursor: pointer;
+      display: none;
+      transition: all 0.2s;
+    }
+    #backBtn:hover {
+      background: var(--accent);
+      color: #000;
     }
 
     #loadingOverlay {
@@ -159,10 +188,7 @@
       flex-direction: column;
       gap: 20px;
     }
-
-    #loadingOverlay.active {
-      display: flex;
-    }
+    #loadingOverlay.active { display: flex; }
 
     .spinner {
       width: 50px; height: 50px;
@@ -171,13 +197,22 @@
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
-
     @keyframes spin { to { transform: rotate(360deg); } }
 
     .loading-text {
       color: var(--accent);
       font-size: 1.2em;
       letter-spacing: 3px;
+    }
+
+    #errorMsg {
+      display: none;
+      color: #ff5555;
+      font-size: 13px;
+      text-align: center;
+      border: 1px solid #ff5555;
+      padding: 10px 20px;
+      border-radius: 8px;
     }
 
     .footer {
@@ -199,7 +234,10 @@
   <div class="loading-text">CONNECTING...</div>
 </div>
 
-<div class="container">
+<button id="backBtn" onclick="goBack()">◀ Back</button>
+<iframe id="sj-frame"></iframe>
+
+<div class="container" id="mainUI">
   <div class="logo">🌐 UBG PROXY</div>
   <div class="subtitle">Powered by Scramjet — Browse Freely</div>
 
@@ -217,11 +255,13 @@
     <div class="quick-link" onclick="go('https://reddit.com')">Reddit</div>
   </div>
 
+  <div id="errorMsg"></div>
   <div class="hint">ENTER URL • PRESS GO OR ENTER • BROWSE FREELY</div>
 </div>
 
 <div class="footer">UBG VILLAGE PRO — PROXY MODE</div>
 
+<script src="/scram/scramjet.all.js"></script>
 <script>
   // Custom cursor
   const cursor = document.getElementById('cursor');
@@ -250,21 +290,26 @@
     });
   }, 45);
 
-  // Enter key support
+  // Init Scramjet
+  const { ScramjetController } = $scramjetLoadController();
+  const scramjet = new ScramjetController({
+    files: {
+      wasm: "/scram/scramjet.wasm.wasm",
+      all: "/scram/scramjet.all.js",
+      sync: "/scram/scramjet.sync.js",
+    },
+  });
+  scramjet.init("/scram/scramjet.sw.js");
+
+  // Init BareMux transport
+  const connection = new BareMux.BareMuxConnection("/baremux/worker.js");
+  const wispUrl = (location.protocol === "https:" ? "wss" : "ws") + "://" + location.host + "/wisp/";
+  connection.setTransport("/libcurl/index.mjs", [{ websocket: wispUrl }]);
+
+  let frameController = null;
+
   document.getElementById('urlInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') navigate();
-  });
-
-  // FIX: Hide loading overlay when pressing back button
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-      document.getElementById('loadingOverlay').classList.remove('active');
-    }
-  });
-
-  // FIX: Also hide on pageshow (back/forward cache)
-  window.addEventListener('pageshow', () => {
-    document.getElementById('loadingOverlay').classList.remove('active');
   });
 
   function go(url) {
@@ -272,7 +317,15 @@
     navigate();
   }
 
-function navigate() {
+  function goBack() {
+    // Hide frame, show main UI
+    document.getElementById('sj-frame').style.display = 'none';
+    document.getElementById('backBtn').style.display = 'none';
+    document.getElementById('mainUI').style.display = 'flex';
+    document.getElementById('sj-frame').src = '';
+  }
+
+  async function navigate() {
     let raw = document.getElementById('urlInput').value.trim();
     if (!raw) return;
 
@@ -284,27 +337,30 @@ function navigate() {
       }
     }
 
-    document.getElementById('loadingOverlay').classList.add('active');
-    location.href = '/scram/' + encodeURIComponent(raw);
-}
-
+    document.getElementById('errorMsg').style.display = 'none';
     document.getElementById('loadingOverlay').classList.add('active');
 
-    // FIX: Use Scramjet's encodeUrl, fall back to encodeURIComponent
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.ready.then(() => {
-        let encoded;
-        try {
-          encoded = scramjet.encodeUrl(raw);
-        } catch(e) {
-          encoded = encodeURIComponent(raw);
-        }
-        location.href = '/scram/' + encoded;
-      }).catch(() => {
-        location.href = '/scram/' + encodeURIComponent(raw);
-      });
-    } else {
-      location.href = '/scram/' + encodeURIComponent(raw);
+    try {
+      // Make sure transport is set
+      if ((await connection.getTransport()) !== "/libcurl/index.mjs") {
+        await connection.setTransport("/libcurl/index.mjs", [{ websocket: wispUrl }]);
+      }
+
+      // Show the frame
+      const frame = document.getElementById('sj-frame');
+      frame.style.display = 'block';
+      document.getElementById('mainUI').style.display = 'none';
+      document.getElementById('backBtn').style.display = 'block';
+
+      // Use Scramjet to load the URL in the iframe
+      frameController = scramjet.createFrame(frame);
+      frameController.go(raw);
+
+      document.getElementById('loadingOverlay').classList.remove('active');
+    } catch(e) {
+      document.getElementById('loadingOverlay').classList.remove('active');
+      document.getElementById('errorMsg').textContent = 'Error: ' + e.message;
+      document.getElementById('errorMsg').style.display = 'block';
     }
   }
 </script>
