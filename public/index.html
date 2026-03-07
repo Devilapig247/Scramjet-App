@@ -25,7 +25,6 @@
       overflow: hidden;
     }
 
-    /* Matrix canvas */
     #matrix {
       position: fixed;
       top: 0; left: 0;
@@ -34,7 +33,6 @@
       opacity: 0.4;
     }
 
-    /* Custom cursor */
     #cursor {
       position: fixed;
       width: 20px; height: 20px;
@@ -74,7 +72,6 @@
       margin-top: -20px;
     }
 
-    /* URL Bar */
     .search-wrapper {
       width: 100%;
       display: flex;
@@ -120,7 +117,6 @@
 
     #goBtn:hover { opacity: 0.8; }
 
-    /* Quick links */
     .quick-links {
       display: flex;
       gap: 10px;
@@ -152,7 +148,6 @@
       letter-spacing: 1px;
     }
 
-    /* Loading overlay */
     #loadingOverlay {
       display: none;
       position: fixed;
@@ -260,6 +255,18 @@
     if (e.key === 'Enter') navigate();
   });
 
+  // FIX: Hide loading overlay when pressing back button
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      document.getElementById('loadingOverlay').classList.remove('active');
+    }
+  });
+
+  // FIX: Also hide on pageshow (back/forward cache)
+  window.addEventListener('pageshow', () => {
+    document.getElementById('loadingOverlay').classList.remove('active');
+  });
+
   function go(url) {
     document.getElementById('urlInput').value = url;
     navigate();
@@ -269,9 +276,7 @@
     let raw = document.getElementById('urlInput').value.trim();
     if (!raw) return;
 
-    // Add https if missing
     if (!raw.startsWith('http://') && !raw.startsWith('https://')) {
-      // If no dot, treat as search
       if (!raw.includes('.')) {
         raw = 'https://www.google.com/search?q=' + encodeURIComponent(raw);
       } else {
@@ -281,16 +286,21 @@
 
     document.getElementById('loadingOverlay').classList.add('active');
 
-    // Use Scramjet service worker to proxy
+    // FIX: Use Scramjet's encodeUrl, fall back to encodeURIComponent
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.ready.then(() => {
-        location.href = '/scram/' + raw;
+        let encoded;
+        try {
+          encoded = scramjet.encodeUrl(raw);
+        } catch(e) {
+          encoded = encodeURIComponent(raw);
+        }
+        location.href = '/scram/' + encoded;
       }).catch(() => {
-        // Fallback if SW not ready
-        location.href = '/scram/' + raw;
+        location.href = '/scram/' + encodeURIComponent(raw);
       });
     } else {
-      location.href = '/scram/' + raw;
+      location.href = '/scram/' + encodeURIComponent(raw);
     }
   }
 </script>
