@@ -272,7 +272,7 @@
     navigate();
   }
 
-  function navigate() {
+function navigate() {
     let raw = document.getElementById('urlInput').value.trim();
     if (!raw) return;
 
@@ -283,6 +283,10 @@
         raw = 'https://' + raw;
       }
     }
+
+    document.getElementById('loadingOverlay').classList.add('active');
+    location.href = '/scram/' + encodeURIComponent(raw);
+}
 
     document.getElementById('loadingOverlay').classList.add('active');
 
